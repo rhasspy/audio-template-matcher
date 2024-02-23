@@ -1,7 +1,8 @@
 """Tests for audio_template_matcher"""
+import itertools
 from pathlib import Path
 
-from audio_template_matcher import TemplateMatcher
+from audio_template_matcher import SpeakerData, TemplateMatcher
 
 _DIR = Path(__file__).parent
 _AUDIO_DIR = _DIR / "audio"
@@ -9,31 +10,48 @@ _BAD_THRESHOLD = 0.1
 
 
 def test_tune() -> None:
-    speaker_dir = _AUDIO_DIR / "speaker_0"
-    matcher = TemplateMatcher.from_wav_dirs({"speaker_0": speaker_dir / "train"})
-    positive_dir = speaker_dir / "positive"
-    negative_dir = speaker_dir / "negative"
+    data_0 = SpeakerData.from_dir(_AUDIO_DIR / "speaker_0")
+    assert data_0.train and data_0.positive and data_0.negative
 
+    data_3 = SpeakerData.from_dir(_AUDIO_DIR / "speaker_3")
+    assert data_3.train and data_3.positive and data_3.negative
+
+    all_samples = list(
+        itertools.chain(
+            data_0.positive, data_0.negative, data_3.positive, data_3.negative
+        )
+    )
+
+    matcher = TemplateMatcher.from_data([data_0, data_3])
     eval_before = matcher.evaluate(
-        positive_dir, negative_dir, distance_threshold=_BAD_THRESHOLD
+        all_samples,
+        distance_threshold=_BAD_THRESHOLD,  # force some false positives/negatives
     )
     score_before = eval_before.false_negatives + eval_before.false_positives
     assert score_before > 0
 
-    tuned_distance_threshold = matcher.tune(positive_dir, negative_dir, step=10)
+    tuned_distance_threshold = matcher.tune(all_samples, step=10)
     eval_after = matcher.evaluate(
-        positive_dir, negative_dir, distance_threshold=tuned_distance_threshold
+        all_samples, distance_threshold=tuned_distance_threshold
     )
     score_after = eval_after.false_negatives + eval_after.false_positives
     assert score_after < score_before  # should improve
 
 
 def test_speaker_id() -> None:
-    speakers = ("speaker_0", "speaker_1", "speaker_2")
-    matcher = TemplateMatcher.from_wav_dirs(
-        {key: _AUDIO_DIR / key / "train" for key in speakers}
-    )
+    """Test that we can distinguish speakers, even with negative samples."""
+    speakers = ("speaker_0", "speaker_1", "speaker_2", "speaker_3")
+    speaker_data = [SpeakerData.from_dir(_AUDIO_DIR / speaker) for speaker in speakers]
+    matcher = TemplateMatcher.from_data(speaker_data)
 
-    for key in speakers:
-        wav_path = _AUDIO_DIR / key / "positive" / "1.wav"
-        assert matcher.match_wav(wav_path, probabilty_threshold=0) == key
+    for data in speaker_data:
+        assert data.positive
+        samples = list(data.positive)
+
+        if data.negative:
+            samples.extend(data.negative)
+
+        for sample in samples:
+            assert (
+                matcher.match_wav(sample.wav_path, probabilty_threshold=0) == data.name
+            )

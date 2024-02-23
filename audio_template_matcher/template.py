@@ -1,7 +1,8 @@
 import wave
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import List
+from pathlib import Path
+from typing import List, Optional, Union
 
 import numpy as np
 
@@ -20,8 +21,14 @@ class Template:
 
     @staticmethod
     def from_wav(
-        name: str, wav_file: wave.Wave_read, vad: Callable[[bytes], bool]
+        name: str,
+        wav_file: Union[str, Path, wave.Wave_read],
+        vad: Optional[Callable[[bytes], bool]] = None,
     ) -> "Template":
+        """Create an audio template from a WAV file."""
+        if not isinstance(wav_file, wave.Wave_read):
+            wav_file = wave.open(str(wav_file), "rb")
+
         audio_bytes = convert(
             wav_file.readframes(wav_file.getnframes()),
             in_rate=wav_file.getframerate(),
@@ -31,7 +38,10 @@ class Template:
             out_width=2,
             out_channels=1,
         )
-        audio_bytes = trim_silence(vad, audio_bytes)
+
+        if vad is not None:
+            audio_bytes = trim_silence(vad, audio_bytes)
+
         audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
 
         mfcc = get_mfcc(audio_array)
