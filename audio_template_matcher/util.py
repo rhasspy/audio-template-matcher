@@ -18,7 +18,6 @@ def distance_to_probability(distance: float, threshold: float) -> float:
 def trim_silence(
     vad: Callable[[bytes], float],
     audio: bytes,
-    threshold: float = 0.5,
     samples_per_chunk=480,
     keep_chunks_before: int = 2,
     keep_chunks_after: int = 2,
@@ -33,7 +32,8 @@ def trim_silence(
     for chunk_idx in range(num_chunks):
         chunk_offset = chunk_idx * bytes_per_chunk
         chunk = audio[chunk_offset : chunk_offset + bytes_per_chunk]
-        if vad(chunk) < threshold:
+        if not vad(chunk):
+            # Silence
             continue
 
         if first_chunk is None:

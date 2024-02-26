@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 import numpy as np
-from pysilero_vad import SileroVoiceActivityDetector
 
 from .audio import convert
 from .data import AudioSample, SpeakerData
@@ -34,9 +33,11 @@ class TemplateMatcher:
         self,
         templates: Dict[str, List[Template]],
         vad: Optional[Callable[[bytes], bool]] = None,
+        vad_reset: Optional[Callable[[], None]] = None,
     ) -> None:
         self.templates = templates
-        self._vad = vad or SileroVoiceActivityDetector()
+        self.vad = vad
+        self.vad_reset = vad_reset
 
     def match_wav(
         self,
@@ -77,11 +78,11 @@ class TemplateMatcher:
 
         Returns speaker name or None if no match.
         """
-        if isinstance(self._vad, SileroVoiceActivityDetector):
-            self._vad.reset()
+        if self.vad_reset is not None:
+            self.vad_reset()
 
-        if self._vad is not None:
-            audio_bytes = trim_silence(self._vad, audio_bytes)  # type: ignore
+        if self.vad is not None:
+            audio_bytes = trim_silence(self.vad, audio_bytes)
 
         audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
         mfcc = get_mfcc(audio_array)
@@ -186,13 +187,10 @@ class TemplateMatcher:
     def from_data(
         speaker_data: Iterable[SpeakerData],
         average: bool = True,
-        use_vad: bool = True,
+        vad: Optional[Callable[[bytes], bool]] = None,
+        vad_reset: Optional[Callable[[], None]] = None,
     ) -> "TemplateMatcher":
         """Creates templates from speaker data."""
-        vad: Optional[Callable[[bytes], bool]] = None
-        if use_vad:
-            vad = SileroVoiceActivityDetector()  # type: ignore
-
         templates: Dict[str, List[Template]] = {}
         for data in speaker_data:
             if not data.train:
@@ -200,10 +198,10 @@ class TemplateMatcher:
 
             dir_templates: List[Template] = []
             for sample in data.train:
-                with wave.open(str(sample.wav_path), "rb") as wav_file:
-                    if isinstance(vad, SileroVoiceActivityDetector):
-                        vad.reset()
+                if vad_reset is not None:
+                    vad_reset()
 
+                with wave.open(str(sample.wav_path), "rb") as wav_file:
                     dir_templates.append(
                         Template.from_wav(sample.wav_path.stem, wav_file, vad)
                     )
@@ -215,4 +213,4 @@ class TemplateMatcher:
             else:
                 templates[data.name] = dir_templates
 
-        return TemplateMatcher(templates)
+        return TemplateMatcher(templates, vad=vad)
