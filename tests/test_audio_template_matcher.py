@@ -2,7 +2,9 @@
 import itertools
 from pathlib import Path
 
+import numpy as np
 from pysilero_vad import SileroVoiceActivityDetector
+from python_speech_features import mfcc
 
 from audio_template_matcher import SpeakerData, TemplateMatcher
 
@@ -11,6 +13,10 @@ _AUDIO_DIR = _DIR / "audio"
 _BAD_THRESHOLD = 0.1
 
 _VAD = SileroVoiceActivityDetector()
+
+
+def _features(audio: np.ndarray) -> np.ndarray:
+    return mfcc(audio, winstep=0.02)
 
 
 def _vad(audio: bytes) -> bool:
@@ -35,7 +41,7 @@ def test_tune() -> None:
     )
 
     matcher = TemplateMatcher.from_data(
-        [data_0, data_3], vad=_vad, vad_reset=_vad_reset
+        [data_0, data_3], _features, vad=_vad, vad_reset=_vad_reset
     )
     eval_before = matcher.evaluate(
         all_samples,
@@ -56,7 +62,9 @@ def test_speaker_id() -> None:
     """Test that we can distinguish speakers, even with negative samples."""
     speakers = ("speaker_0", "speaker_1", "speaker_2", "speaker_3")
     speaker_data = [SpeakerData.from_dir(_AUDIO_DIR / speaker) for speaker in speakers]
-    matcher = TemplateMatcher.from_data(speaker_data, vad=_vad, vad_reset=_vad_reset)
+    matcher = TemplateMatcher.from_data(
+        speaker_data, _features, vad=_vad, vad_reset=_vad_reset
+    )
 
     for data in speaker_data:
         assert data.positive

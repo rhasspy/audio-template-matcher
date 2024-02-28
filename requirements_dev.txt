@@ -6,3 +6,4 @@ pylint==2.15.9
 pytest==7.4.3
 tox==4.13.0
 pysilero-vad==1.0.0
+python-speech-features==0.6

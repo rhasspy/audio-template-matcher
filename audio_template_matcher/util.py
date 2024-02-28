@@ -1,13 +1,7 @@
+"""Utility methods."""
 import math
 from collections.abc import Callable
 from typing import Optional
-
-import numpy as np
-import python_speech_features
-
-
-def get_mfcc(audio: np.ndarray) -> np.ndarray:
-    return python_speech_features.mfcc(audio, winstep=0.02)
 
 
 def distance_to_probability(distance: float, threshold: float) -> float:

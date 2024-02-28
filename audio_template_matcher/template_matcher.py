@@ -10,7 +10,7 @@ from .audio import convert
 from .data import AudioSample, SpeakerData
 from .dtw import compute_optimal_path_with_window, get_path
 from .template import Template
-from .util import distance_to_probability, get_mfcc, trim_silence
+from .util import distance_to_probability, trim_silence
 
 _DEFAULT_PROBABILITY = 0.5
 _DEFAULT_DISTANCE = 0.3
@@ -32,10 +32,12 @@ class TemplateMatcher:
     def __init__(
         self,
         templates: Dict[str, List[Template]],
+        audio_to_features: Callable[[np.ndarray], np.ndarray],
         vad: Optional[Callable[[bytes], bool]] = None,
         vad_reset: Optional[Callable[[], None]] = None,
     ) -> None:
         self.templates = templates
+        self.audio_to_features = audio_to_features
         self.vad = vad
         self.vad_reset = vad_reset
 
@@ -85,21 +87,39 @@ class TemplateMatcher:
             audio_bytes = trim_silence(self.vad, audio_bytes)
 
         audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
-        mfcc = get_mfcc(audio_array)
+        features = self.audio_to_features(audio_array)
 
+        return self.match_features(
+            features,
+            probabilty_threshold=probabilty_threshold,
+            distance_threshold=distance_threshold,
+        )
+
+    def match_features(
+        self,
+        features: np.ndarray,
+        probabilty_threshold: float = _DEFAULT_PROBABILITY,
+        distance_threshold: float = _DEFAULT_DISTANCE,
+    ) -> Optional[str]:
+        """Match features to templates.
+
+        Returns speaker name or None if no match.
+        """
         best_key: Optional[str] = None
         best_probability: Optional[float] = None
 
         for key, templates in self.templates.items():
             for template in templates:
                 distance, _cost_matrix = compute_optimal_path_with_window(
-                    template.mfcc, mfcc
+                    template.features, features
                 )
 
-                path = get_path(_cost_matrix)
-
                 # Normalize by sum of temporal dimensions
-                # normalized_distance = distance / (len(template.mfcc) + len(mfcc))
+                # normalized_distance = distance / (
+                #     len(template.features) + len(features)
+                # )
+
+                path = get_path(_cost_matrix)
                 normalized_distance = distance / len(path)
 
                 # Compute detection probability
@@ -186,6 +206,7 @@ class TemplateMatcher:
     @staticmethod
     def from_data(
         speaker_data: Iterable[SpeakerData],
+        audio_to_features: Callable[[np.ndarray], np.ndarray],
         average: bool = True,
         vad: Optional[Callable[[bytes], bool]] = None,
         vad_reset: Optional[Callable[[], None]] = None,
@@ -203,7 +224,9 @@ class TemplateMatcher:
 
                 with wave.open(str(sample.wav_path), "rb") as wav_file:
                     dir_templates.append(
-                        Template.from_wav(sample.wav_path.stem, wav_file, vad)
+                        Template.from_wav(
+                            sample.wav_path.stem, wav_file, audio_to_features, vad=vad
+                        )
                     )
 
             if average:
@@ -213,4 +236,4 @@ class TemplateMatcher:
             else:
                 templates[data.name] = dir_templates
 
-        return TemplateMatcher(templates, vad=vad)
+        return TemplateMatcher(templates, audio_to_features, vad=vad)
