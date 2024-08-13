@@ -1,3 +1,4 @@
+"""Audio template."""
 import wave
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -7,6 +8,7 @@ from typing import List, Optional, Union
 import numpy as np
 
 from .audio import convert
+from .const import SAMPLE_CHANNELS, SAMPLE_RATE, SAMPLE_WIDTH, SAMPLES_PER_CHUNK
 from .dtw import compute_optimal_path, get_path
 from .util import trim_silence
 
@@ -23,8 +25,9 @@ class Template:
     def from_wav(
         name: str,
         wav_file: Union[str, Path, wave.Wave_read],
-        audio_to_features: Callable[[np.ndarray], np.ndarray],
+        audio_to_features: Callable[[bytes], np.ndarray],
         vad: Optional[Callable[[bytes], bool]] = None,
+        samples_per_chunk: int = SAMPLES_PER_CHUNK,
     ) -> "Template":
         """Create an audio template from a WAV file."""
         if not isinstance(wav_file, wave.Wave_read):
@@ -35,18 +38,18 @@ class Template:
             in_rate=wav_file.getframerate(),
             in_width=wav_file.getsampwidth(),
             in_channels=wav_file.getnchannels(),
-            out_rate=16000,
-            out_width=2,
-            out_channels=1,
+            out_rate=SAMPLE_RATE,
+            out_width=SAMPLE_WIDTH,
+            out_channels=SAMPLE_CHANNELS,
         )
 
         if vad is not None:
-            audio_bytes = trim_silence(vad, audio_bytes)
+            audio_bytes = trim_silence(
+                vad, audio_bytes, samples_per_chunk=samples_per_chunk
+            )
 
-        audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
-
-        features = audio_to_features(audio_array)
-        duration_sec = len(audio_array) / 16000
+        features = audio_to_features(audio_bytes)
+        duration_sec = len(audio_bytes) / (SAMPLE_RATE * SAMPLE_WIDTH * SAMPLE_CHANNELS)
 
         return Template(name, duration_sec, features)
 

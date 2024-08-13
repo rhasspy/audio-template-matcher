@@ -1,4 +1,5 @@
 """Dynamic time warping implementation."""
+
 import math
 from typing import List, Tuple
 
@@ -10,6 +11,7 @@ def compute_optimal_path(
     x: np.ndarray,
     y: np.ndarray,
     distance_func: str = "cosine",
+    eps: float = 1e-14,
 ) -> Tuple[float, np.ndarray]:
     """Computes optimal path between x and y.
 
@@ -17,6 +19,10 @@ def compute_optimal_path(
     """
     m = len(x)
     n = len(y)
+
+    # Avoid NaN
+    x += eps
+    y += eps
 
     # Need 2-D arrays for distance calculation
     if len(x.shape) == 1:
@@ -58,6 +64,7 @@ def compute_optimal_path_with_window(
     window: int = 5,
     step_pattern: float = 2,
     distance_func: str = "cosine",
+    eps: float = 1e-14,
 ) -> Tuple[float, np.ndarray]:
     """Computes optimal path between x and y using a window.
 
@@ -75,6 +82,10 @@ def compute_optimal_path_with_window(
 
     if len(y.shape) == 1:
         y = y.reshape(-1, 1)
+
+    # Avoid NaN
+    x += eps
+    y += eps
 
     # Pre-compute distance between all pairs
     distance_matrix = scipy.spatial.distance.cdist(x, y, metric=distance_func)

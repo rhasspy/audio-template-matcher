@@ -1,4 +1,5 @@
 """Utility methods."""
+
 import math
 from collections.abc import Callable
 from typing import Optional
@@ -12,7 +13,7 @@ def distance_to_probability(distance: float, threshold: float) -> float:
 def trim_silence(
     vad: Callable[[bytes], float],
     audio: bytes,
-    samples_per_chunk=480,
+    samples_per_chunk: int = 512,
     keep_chunks_before: int = 2,
     keep_chunks_after: int = 2,
     sample_width: int = 2,
