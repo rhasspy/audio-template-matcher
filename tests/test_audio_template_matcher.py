@@ -72,7 +72,7 @@ def test_tune() -> None:
 
 
 def test_speaker_id() -> None:
-    """Test that we can distinguish speakers, even with negative samples."""
+    """Test that we can distinguish speakers with positive examples after training."""
     speakers = ("speaker_0", "speaker_1")
     speaker_data = [SpeakerData.from_dir(_AUDIO_DIR / speaker) for speaker in speakers]
     matcher = TemplateMatcher.from_data(
